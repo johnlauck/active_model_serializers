@@ -238,10 +238,11 @@ module ActiveModel
     class << self
       # Define attributes to be used in the serialization.
       def attributes(*attrs)
+        options = attrs.extract_options!
         self._attributes = _attributes.dup
 
         attrs.each do |attr|
-          attribute attr
+          attribute attr, options
         end
       end
 
@@ -254,7 +255,7 @@ module ActiveModel
           end
         end
 
-        define_include_method attr
+        define_include_method attr, options
       end
 
       def associate(klass, attrs) #:nodoc:
@@ -268,20 +269,26 @@ module ActiveModel
             end
           end
 
-          define_include_method attr
+          define_include_method attr, options
 
           self._associations[attr] = klass.refine(attr, options)
         end
       end
 
-      def define_include_method(name)
+      def define_include_method(name, options = {})
         method = "include_#{name}?".to_sym
 
         INCLUDE_METHODS[name] = method
 
+        profiles = if options[:profile]
+          options[:profile].is_a?(Array) ? options[:profile] : [options[:profile]]
+        else
+          [:default]
+        end
+
         unless method_defined?(method)
           define_method method do
-            true
+            (profiles & [profile, :default]).any?
           end
         end
       end
@@ -523,6 +530,10 @@ module ActiveModel
     # Returns options[:scope]
     def scope
       @options[:scope]
+    end
+
+    def profile
+      @options[:profile] || :default
     end
 
     alias :read_attribute_for_serialization :send

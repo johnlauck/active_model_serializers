@@ -283,6 +283,73 @@ class SerializerTest < ActiveModel::TestCase
     }, post_serializer.as_json)
   end
 
+  class PostWithProfileSerializer < ActiveModel::Serializer
+    root :post
+    attributes :title, :profile => [:title, :deets]
+    attribute :author, :profile => :deets
+    attributes :body, :profile => [:some, :deets]
+    attribute :email
+
+    has_many :comments, :profile => :comments, :serializer => CommentSerializer
+  end
+
+  def test_conditionally_included_by_profile_associations_and_attributes
+    user = User.new
+
+    post = Post.new(:title => "New Post", :body => "Body of new post", :author => 'Sausage King', :email => "tenderlove@tenderlove.com")
+    comments = [Comment.new(:title => "Comment1"), Comment.new(:title => "Comment2")]
+    post.comments = comments
+
+    # using :some profile
+    post_serializer = PostWithProfileSerializer.new(post, :profile => :some)
+    assert_equal({
+      :post => {
+        :body => "Body of new post",
+        :email => "tenderlove@tenderlove.com"
+      }
+    }, post_serializer.as_json)
+
+    # using :deets profile
+    post_serializer = PostWithProfileSerializer.new(post, :profile => :deets)
+    assert_equal({
+      :post => {
+        :title => "New Post",
+        :body => "Body of new post",
+        :author => 'Sausage King',
+        :email => "tenderlove@tenderlove.com"
+      }
+    }, post_serializer.as_json)
+
+    # using default profile
+    post_serializer = PostWithProfileSerializer.new(post)
+    assert_equal({
+      :post => {
+        :email => "tenderlove@tenderlove.com"
+      }
+    }, post_serializer.as_json)
+
+    # using explicit default profile
+    post_serializer = PostWithProfileSerializer.new(post, :profile => :default)
+    assert_equal({
+      :post => {
+        :email => "tenderlove@tenderlove.com"
+      }
+    }, post_serializer.as_json)
+
+    # using profile for nested has many comments
+    post_serializer = PostWithProfileSerializer.new(post, :profile => :comments)
+    assert_equal({
+      :post => {
+        :email => "tenderlove@tenderlove.com",
+        :comments => [
+          { :title => "Comment1" },
+          { :title => "Comment2" }
+        ]
+      }
+    }, post_serializer.as_json)
+
+  end
+
   class Blog < Model
     attr_accessor :author
   end
